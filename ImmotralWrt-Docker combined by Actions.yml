@@ -1,0 +1,110 @@
+name: Build ImmotralWrt Docker Image
+
+env:
+  # Immortalwrt的固件下载地址
+  IMMORTALWRT_URL: https://immortalwrt.kyarucloud.moe/releases/24.10.4/targets/
+  # Immortalwrt的官方软件仓库地址(不要加“/”)
+  REPOSITORIES_URL: https://immortalwrt.kyarucloud.moe
+  DEVICE_VERSION: 24.10.4
+  DEVICE_PLATFORM: x86
+  DEVICE_TARGET: x86
+  DEVICE_SUBTARGET: 64
+
+on:
+  workflow_dispatch:
+    inputs:
+      IP_ADDRESS:
+        description: '指定ImmortalWrt的LAN IPv4地址(默认:192.168.1.1)'
+        required: true
+        default: '192.168.1.1'
+      GATEWAY:
+        description: '指定Immortalwrt的网关(默认:192.168.1.254)'
+        required: true
+        default: '192.168.1.254'
+      DNS_SERVER:
+        description: '自定义OpenWrt的DNS服务器(默认:8.8.8.8)'
+        required: true
+        default: '8.8.8.8'
+
+jobs:
+  Build:
+    name: Build ImmortalWrt Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Initialization Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install build-essential libncurses5-dev libncursesw5-dev \
+            zlib1g-dev gawk git gettext libssl-dev xsltproc rsync wget unzip python3 qemu-utils genisoimage zstd 
+
+      - name: Docker Setup QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Docker Setup Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Download Image Builder
+        run: |
+          wget -q $IMMORTALWRT_URL/$DEVICE_TARGET/$DEVICE_SUBTARGET/immortalwrt-imagebuilder-$DEVICE_VERSION-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64.tar.zst
+
+      - name: Update Repositories
+        run: |
+          tar -I zstd -xvf *.tar.zst > /dev/null 2>&1
+          cd immortalwrt-imagebuilder-$DEVICE_VERSION-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64
+          # 替换 repositories.conf 中的源地址
+          sed -i "s|https://downloads.immortalwrt.org|$REPOSITORIES_URL|g" repositories.conf
+          cp -rf $GITHUB_WORKSPACE/files .
+
+          # 获取用户输入的变量
+          IP_ADDRESS="${{ github.event.inputs.IP_ADDRESS }}"
+          GATEWAY="${{ github.event.inputs.GATEWAY }}"
+          DNS_SERVER="${{ github.event.inputs.DNS_SERVER }}"
+
+          # 使用 sed 替换模板中的占位符
+          sed -i "s/{{IP_ADDRESS}}/${IP_ADDRESS}/g" files/etc/config/network
+          sed -i "s/{{GATEWAY}}/${GATEWAY}/g" files/etc/config/network
+          sed -i "s/{{DNS_SERVER}}/${DNS_SERVER}/g" files/etc/config/network
+          
+          chmod +x files/etc/rc.local
+
+      - name: Get Date and Time (CST)
+        id: datetime
+        run: |
+          export TZ='Asia/Shanghai'
+          echo "DATE_TIME=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
+
+      - name: Build RootFS
+        run: |
+          cd immortalwrt-imagebuilder-$DEVICE_VERSION-$DEVICE_TARGET-$DEVICE_SUBTARGET.Linux-x86_64
+          chmod +x $GITHUB_WORKSPACE/scripts/*
+          $GITHUB_WORKSPACE/scripts/preset-terminal-tools.sh
+          export CONFIG_PACKAGES=$(cat $GITHUB_WORKSPACE/config/packages.config | tr -s "\n" " ")
+          make image PACKAGES="$CONFIG_PACKAGES" FILES="files"
+          cp -rf bin/targets/$DEVICE_TARGET/$DEVICE_SUBTARGET/*rootfs.tar.gz $GITHUB_WORKSPACE/ImmortalWrt-Rootfs-${{ env.DATE_TIME }}.tar.gz
+
+      - name: Build Docker Image
+        run: |
+          docker build -t immortalwrt:${{ env.DATE_TIME }} -f Dockerfile .
+          docker save -o ImmortalWrt-Docker-Image-${{ env.DATE_TIME }}.tar immortalwrt:${{ env.DATE_TIME }}
+          gzip ImmortalWrt-Docker-Image-${{ env.DATE_TIME }}.tar
+          
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ImmortalWrt-${{ env.DATE_TIME }}  # 使用环境变量来设置tag_name
+          name: ImmortalWrt Docker Image ${{ env.DATE_TIME }}
+          draft: false
+          prerelease: false
+          files: |
+            ImmortalWrt-Docker-Image-${{ env.DATE_TIME }}.tar.gz
+            ImmortalWrt-Rootfs-${{ env.DATE_TIME }}.tar.gz
+
