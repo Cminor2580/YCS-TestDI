@@ -1,4 +1,4 @@
-name: Build ImmotralWrt Docker Image
+name: ImmotralWrt Docker Image Build
 
 env:
   # Immortalwrt的固件下载地址
