@@ -41,7 +41,7 @@ jobs:
           REMOTE_USERNAME:  ${{ secrets.REMOTE_USERNAME }}
           REMOTE_FILEPATH:  ${{ secrets.REMOTE_FILEPATH }}
         run: |
-          git clone https://your-username:${REMOTE_ACCESSKEY}@codeberg.org/${REMOTE_USERNAME}/${REMOTE_FILEPATH}.git codeberg-config
+          git clone https://${REMOTE_USERNAME}:${REMOTE_ACCESSKEY}@codeberg.org/${REMOTE_USERNAME}/${REMOTE_FILEPATH}.git codeberg-config
           cp -rf codeberg-config/config .
           cp -rf codeberg-config/files .
           cp -rf codeberg-config/scripts .
