@@ -30,6 +30,8 @@ jobs:
   Build:
     name: Build ImmortalWrt Docker Image
     runs-on: ubuntu-latest
+    permissions: 
+      contents: write
 
     steps:
       - name: Checkout
