@@ -35,6 +35,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Clone config files from private CodeBerg repo
+        env:
+          REMOTE_ACCESSKEY: ${{ secrets.REMOTE_ACCESSKEY }}
+          REMOTE_USERNAME:  ${{ secrets.REMOTE_USERNAME }}
+          REMOTE_FILEPATH:  ${{ secrets.REMOTE_FILEPATH }}
+        run: |
+          git clone https://your-username:${REMOTE_ACCESSKEY}@codeberg.org/${REMOTE_USERNAME}/${REMOTE_FILEPATH}.git codeberg-config
+          cp -rf codeberg-config/config .
+          cp -rf codeberg-config/files .
+          cp -rf codeberg-config/scripts .
+          cp -f  codeberg-config/Dockerfile .
+
       - name: Initialization Environment
         env:
           DEBIAN_FRONTEND: noninteractive
