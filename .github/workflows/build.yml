@@ -37,7 +37,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Clone config files from private CodeBerg repo
+      - name: Prepare necessary files
         env:
           REMOTE_ACCESSKEY: ${{ secrets.REMOTE_ACCESSKEY }}
           REMOTE_USERNAME:  ${{ secrets.REMOTE_USERNAME }}
